@@ -1,0 +1,86 @@
+name: Build APK
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.12"
+  PYTHONUTF8: "1"
+  FLET_CLI_NO_RICH_OUTPUT: "1"
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # ------------------------------------------------------------------ #
+      # 1. Source
+      # ------------------------------------------------------------------ #
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------ #
+      # 2. Toolchain
+      # ------------------------------------------------------------------ #
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ------------------------------------------------------------------ #
+      # 3. Verify
+      # ------------------------------------------------------------------ #
+      - name: Verify toolchain
+        run: |
+          java -version
+          python --version
+          flet --version
+          echo "--- project layout ---"
+          find . -maxdepth 3 -not -path './.git/*' | sort
+
+      # ------------------------------------------------------------------ #
+      # 4. Build (Flet downloads its own Flutter SDK automatically)
+      # ------------------------------------------------------------------ #
+      - name: Build APK
+        run: yes | flet build apk --verbose
+
+      # ------------------------------------------------------------------ #
+      # 5. Upload artifact
+      # ------------------------------------------------------------------ #
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DocTracker-apk
+          path: build/apk/**/*.apk
+          if-no-files-found: error
+
+      # ------------------------------------------------------------------ #
+      # 6. Release (on tag push)
+      # ------------------------------------------------------------------ #
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/apk/**/*.apk
+          generate_release_notes: true

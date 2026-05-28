@@ -1,0 +1,57 @@
+[project]
+name = "document-tracker"
+version = "1.0.0"
+description = "Offline document expiry tracker with reminders"
+requires-python = ">=3.12"
+dependencies = [
+    "flet>=0.25.0",
+    "plyer",
+    "apscheduler",
+]
+
+# ---------------------------------------------------------------------------
+# Flet build configuration
+# ---------------------------------------------------------------------------
+[tool.flet]
+org = "com.doctracker"
+product = "DocTracker"
+build_number = 1
+
+[tool.flet.app]
+path = "src"
+module = "main"
+assets = "src/assets"
+
+# ---------------------------------------------------------------------------
+# Icons & splash
+# ---------------------------------------------------------------------------
+[tool.flet.icon]
+path = "src/assets/icon.png"
+
+[tool.flet.splash]
+color = "#0f0f1a"
+dark_color = "#0f0f1a"
+image = "src/assets/splash.png"
+
+# ---------------------------------------------------------------------------
+# Android-specific settings
+# ---------------------------------------------------------------------------
+[tool.flet.android]
+min_sdk_version = 24
+target_sdk_version = 34
+adaptive_icon_background = "#0f0f1a"
+
+[tool.flet.android.permission]
+"android.permission.INTERNET" = true
+"android.permission.RECEIVE_BOOT_COMPLETED" = true
+"android.permission.VIBRATE" = true
+
+# ---------------------------------------------------------------------------
+# Compile & cleanup (smaller APK)
+# ---------------------------------------------------------------------------
+[tool.flet.compile]
+app = true
+packages = true
+
+[tool.flet.cleanup]
+packages = true
