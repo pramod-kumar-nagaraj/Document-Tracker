@@ -7,7 +7,10 @@ from database import (
     delete_document,
     update_document,
     get_document_stats,
+    get_profile,
+    save_profile,
 )
+from scheduler import start_scheduler
 
 
 # =======================
@@ -48,6 +51,47 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.DARK
 
     init_db()
+    start_scheduler()
+
+    # =======================
+    # CHECK & SHOW IN-APP REMINDERS
+    # =======================
+    def check_and_show_reminders():
+        docs = get_documents()
+        today = datetime.today().date()
+        now = datetime.now()
+
+        for doc in docs:
+            try:
+                expiry = datetime.strptime(doc["expiry_date"], "%Y-%m-%d").date()
+                days_left = (expiry - today).days
+                reminder_days = doc["reminder_days"] or 7
+                alert_time = doc["alert_time"] if "alert_time" in doc.keys() else "08:00"
+
+                # Only alert if within the reminder window
+                if days_left < 0:
+                    continue
+                if days_left > reminder_days:
+                    continue
+
+                # Check if current time is at or past alert time today
+                try:
+                    alert_hour, alert_min = map(int, (alert_time or "08:00").split(":"))
+                except (ValueError, TypeError):
+                    alert_hour, alert_min = 8, 0
+
+                if now.hour > alert_hour or (now.hour == alert_hour and now.minute >= alert_min):
+                    if days_left == 0:
+                        show_snack(f"🚨 {doc['name']} expires TODAY!", C.ACCENT)
+                        break
+                    else:
+                        show_snack(
+                            f"⚠️ {doc['name']} expires in {days_left} day(s)!",
+                            C.WARNING,
+                        )
+                        break
+            except (ValueError, TypeError):
+                continue
 
     # =======================
     # SNACKBAR
@@ -82,15 +126,88 @@ def main(page: ft.Page):
             return f"{days_left}d left", C.SUCCESS, "#153d2a"
 
     # =======================
+    # SHOW NOTES DIALOG
+    # =======================
+    def show_notes_dialog(doc):
+        name = doc["name"]
+        notes = doc["notes"] or "No notes available."
+
+        def close_dlg(e):
+            dlg.open = False
+            page.update()
+
+        dlg = ft.AlertDialog(
+            modal=False,
+            title=ft.Row(
+                [
+                    ft.Icon(ft.Icons.NOTES_OUTLINED, size=18, color=C.INFO),
+                    ft.Text(name, size=15, weight=ft.FontWeight.W_600, color=C.TEXT),
+                ],
+                spacing=8,
+            ),
+            bgcolor=C.SURFACE,
+            content=ft.Text(notes, size=13, color=C.TEXT2),
+            actions=[
+                ft.TextButton("Close", on_click=close_dlg),
+            ],
+        )
+        page.overlay.append(dlg)
+        dlg.open = True
+        page.update()
+
+    # =======================
+    # ERROR DIALOG
+    # =======================
+    def show_error_dialog(errors):
+        def close_dlg(e):
+            err_dlg.open = False
+            page.update()
+
+        error_items = []
+        for err in errors:
+            error_items.append(
+                ft.Row(
+                    [
+                        ft.Icon(ft.Icons.CANCEL_OUTLINED, size=14, color=C.ACCENT),
+                        ft.Text(err, size=12, color=C.TEXT2),
+                    ],
+                    spacing=6,
+                )
+            )
+
+        err_dlg = ft.AlertDialog(
+            modal=True,
+            title=ft.Row(
+                [
+                    ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=20, color=C.WARNING),
+                    ft.Text("Validation Error", size=15, weight=ft.FontWeight.W_600, color=C.WARNING),
+                ],
+                spacing=8,
+            ),
+            bgcolor=C.SURFACE,
+            content=ft.Column(error_items, spacing=6, tight=True),
+            actions=[
+                ft.TextButton("OK", on_click=close_dlg),
+            ],
+        )
+        page.overlay.append(err_dlg)
+        err_dlg.open = True
+        page.update()
+
+    # =======================
     # DOCUMENT CARD (mobile)
     # =======================
     def doc_card(doc, on_edit, on_delete):
         doc_id = doc["id"]
         name = doc["name"]
         category = doc["category"] or "Other"
-        expiry_date = doc["expiry_date"] or "—"
-        days_left = days_left_for(doc["expiry_date"])
-        status_text, status_color, badge_bg = status_info(days_left)
+        has_expiry = bool(doc["expiry_date"])
+        expiry_date = doc["expiry_date"] if has_expiry else "No Expiry"
+        if has_expiry:
+            days_left = days_left_for(doc["expiry_date"])
+            status_text, status_color, badge_bg = status_info(days_left)
+        else:
+            status_text, status_color, badge_bg = "∞", C.TEXT2, C.SURFACE
 
         return ft.Container(
             content=ft.Column(
@@ -129,6 +246,13 @@ def main(page: ft.Page):
                             ft.Text(f"Expires: {expiry_date}", size=11, color=C.TEXT2),
                             ft.Row(
                                 [
+                                    ft.IconButton(
+                                        icon=ft.Icons.INFO_OUTLINE,
+                                        icon_color=C.SUCCESS,
+                                        icon_size=18,
+                                        on_click=lambda e, d=doc: show_notes_dialog(d),
+                                        tooltip="View details",
+                                    ),
                                     ft.IconButton(
                                         icon=ft.Icons.EDIT_OUTLINED,
                                         icon_color=C.INFO,
@@ -195,15 +319,19 @@ def main(page: ft.Page):
         expired_docs = []
         expiring_docs = []
         active_docs = []
+        no_expiry_docs = []
 
         for doc in docs:
-            dl = days_left_for(doc["expiry_date"])
-            if dl < 0:
-                expired_docs.append(doc)
-            elif dl <= 7:
-                expiring_docs.append(doc)
+            if not doc["expiry_date"]:
+                no_expiry_docs.append(doc)
             else:
-                active_docs.append(doc)
+                dl = days_left_for(doc["expiry_date"])
+                if dl < 0:
+                    expired_docs.append(doc)
+                elif dl <= 7:
+                    expiring_docs.append(doc)
+                else:
+                    active_docs.append(doc)
 
         def on_edit(doc):
             navigate("edit", doc)
@@ -281,7 +409,21 @@ def main(page: ft.Page):
         )
 
         items = []
-        items.append(ft.Text("Dashboard", size=22, weight=ft.FontWeight.BOLD, color=C.TEXT))
+        items.append(
+            ft.Row(
+                [
+                    ft.Text("Dashboard", size=22, weight=ft.FontWeight.BOLD, color=C.TEXT),
+                    ft.IconButton(
+                        icon=ft.Icons.ACCOUNT_CIRCLE_OUTLINED,
+                        icon_color=C.INFO,
+                        icon_size=28,
+                        on_click=lambda e: navigate("profile"),
+                        tooltip="Profile",
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            )
+        )
         items.append(ft.Container(height=4))
         items.append(stat_row)
 
@@ -301,6 +443,12 @@ def main(page: ft.Page):
         if active_docs:
             items.append(section_header("Active", ft.Icons.CHECK_CIRCLE_OUTLINE, C.SUCCESS, len(active_docs)))
             for doc in active_docs:
+                items.append(doc_card(doc, on_edit, on_delete))
+
+        # No Expiry section
+        if no_expiry_docs:
+            items.append(section_header("No Expiry", ft.Icons.ALL_INCLUSIVE, C.TEXT2, len(no_expiry_docs)))
+            for doc in no_expiry_docs:
                 items.append(doc_card(doc, on_edit, on_delete))
 
         if not docs:
@@ -374,7 +522,19 @@ def main(page: ft.Page):
 
         return ft.Column(
             [
-                ft.Text("All Documents", size=22, weight=ft.FontWeight.BOLD, color=C.TEXT),
+                ft.Row(
+                    [
+                        ft.Text("All Documents", size=22, weight=ft.FontWeight.BOLD, color=C.TEXT),
+                        ft.IconButton(
+                            icon=ft.Icons.ACCOUNT_CIRCLE_OUTLINED,
+                            icon_color=C.INFO,
+                            icon_size=28,
+                            on_click=lambda e: navigate("profile"),
+                            tooltip="Profile",
+                        ),
+                    ],
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                ),
                 search_field,
                 ft.Container(height=4),
                 docs_column,
@@ -436,7 +596,7 @@ def main(page: ft.Page):
         )
 
         expiry_date_field = ft.TextField(
-            label="Expiry Date *",
+            label="Expiry Date",
             value=doc["expiry_date"] if is_edit else "",
             border_radius=8,
             bgcolor=C.INPUT_BG,
@@ -446,6 +606,29 @@ def main(page: ft.Page):
             hint_text="YYYY-MM-DD",
             read_only=True,
         )
+
+        # No Expiry toggle
+        no_expiry_check = ft.Checkbox(
+            label="No Expiry",
+            value=True if (is_edit and not doc["expiry_date"]) else False,
+            active_color=C.INFO,
+            check_color="#fff",
+            label_style=ft.TextStyle(color=C.TEXT2, size=13),
+        )
+
+        def on_no_expiry_change(e):
+            if no_expiry_check.value:
+                expiry_date_field.value = ""
+                expiry_date_field.disabled = True
+                reminder_field.disabled = True
+                alert_time_field.disabled = True
+            else:
+                expiry_date_field.disabled = False
+                reminder_field.disabled = False
+                alert_time_field.disabled = False
+            page.update()
+
+        no_expiry_check.on_change = on_no_expiry_change
 
         reminder_field = ft.Dropdown(
             label="Remind Before Expiry *",
@@ -466,6 +649,58 @@ def main(page: ft.Page):
             ],
         )
 
+        alert_time_field = ft.TextField(
+            label="Daily Alert Time *",
+            value=doc["alert_time"] if is_edit and doc["alert_time"] else "08:00",
+            border_radius=8,
+            bgcolor=C.INPUT_BG,
+            border_color=C.BORDER,
+            color=C.TEXT,
+            label_style=ft.TextStyle(color=C.TEXT2),
+            hint_text="HH:MM",
+            read_only=True,
+        )
+
+        time_picker = ft.TimePicker(
+            confirm_text="SELECT",
+            cancel_text="CANCEL",
+        )
+
+        def on_time_picked(e):
+            if e.control.value:
+                t = e.control.value
+                alert_time_field.value = f"{t.hour:02d}:{t.minute:02d}"
+                alert_time_field.error_text = None
+                page.update()
+
+        time_picker.on_change = on_time_picked
+        page.overlay.append(time_picker)
+
+        def open_time_picker(e):
+            time_picker.open = True
+            page.update()
+
+        alert_time_row = ft.Row(
+            [
+                ft.Container(content=alert_time_field, expand=True),
+                ft.IconButton(
+                    icon=ft.Icons.ACCESS_TIME,
+                    icon_color=C.SUCCESS,
+                    icon_size=22,
+                    on_click=open_time_picker,
+                    tooltip="Pick time",
+                    bgcolor=C.INPUT_BG,
+                ),
+            ],
+            spacing=8,
+        )
+
+        # Set initial disabled state for no-expiry docs
+        if no_expiry_check.value:
+            expiry_date_field.disabled = True
+            reminder_field.disabled = True
+            alert_time_field.disabled = True
+
         notes_field = ft.TextField(
             label="Notes *",
             value=doc["notes"] if is_edit else "",
@@ -481,10 +716,27 @@ def main(page: ft.Page):
         )
 
         # Date pickers
+        start_date_picker = ft.DatePicker(
+            first_date=datetime(2000, 1, 1),
+            last_date=datetime(2100, 12, 31),
+            confirm_text="SELECT",
+            cancel_text="CANCEL",
+        )
+
+        expiry_date_picker = ft.DatePicker(
+            first_date=datetime(2000, 1, 1),
+            last_date=datetime(2100, 12, 31),
+            confirm_text="SELECT",
+            cancel_text="CANCEL",
+        )
+
         def on_start_date_picked(e):
             if e.control.value:
-                start_date_field.value = e.control.value.strftime("%Y-%m-%d")
+                picked = e.control.value
+                start_date_field.value = picked.strftime("%Y-%m-%d")
                 start_date_field.error_text = None
+                # Restrict expiry picker: only allow dates after start
+                expiry_date_picker.first_date = picked
                 page.update()
 
         def on_expiry_date_picked(e):
@@ -493,21 +745,8 @@ def main(page: ft.Page):
                 expiry_date_field.error_text = None
                 page.update()
 
-        start_date_picker = ft.DatePicker(
-            first_date=datetime(2000, 1, 1),
-            last_date=datetime(2100, 12, 31),
-            on_change=on_start_date_picked,
-            confirm_text="SELECT",
-            cancel_text="CANCEL",
-        )
-
-        expiry_date_picker = ft.DatePicker(
-            first_date=datetime(2000, 1, 1),
-            last_date=datetime(2100, 12, 31),
-            on_change=on_expiry_date_picked,
-            confirm_text="SELECT",
-            cancel_text="CANCEL",
-        )
+        start_date_picker.on_change = on_start_date_picked
+        expiry_date_picker.on_change = on_expiry_date_picked
 
         page.overlay.append(start_date_picker)
         page.overlay.append(expiry_date_picker)
@@ -517,6 +756,17 @@ def main(page: ft.Page):
             page.update()
 
         def open_expiry_picker(e):
+            # If start date is selected, restrict expiry to after it
+            if start_date_field.value:
+                try:
+                    sd = datetime.strptime(start_date_field.value, "%Y-%m-%d")
+                    expiry_date_picker.first_date = sd
+                except ValueError:
+                    pass
+            elif not start_date_field.value:
+                start_date_field.error_text = "Select start date first"
+                page.update()
+                return
             expiry_date_picker.open = True
             page.update()
 
@@ -553,65 +803,47 @@ def main(page: ft.Page):
 
         # Validation
         def handle_save(e):
-            has_error = False
+            errors = []
 
             if not name_field.value or not name_field.value.strip():
-                name_field.error_text = "Document name is required"
-                has_error = True
-            else:
-                name_field.error_text = None
+                errors.append("Document name is required")
 
             if not category_field.value:
-                category_field.error_text = "Please select a category"
-                has_error = True
-            else:
-                category_field.error_text = None
+                errors.append("Please select a category")
 
             if not start_date_field.value or not start_date_field.value.strip():
-                start_date_field.error_text = "Start date is required"
-                has_error = True
-            else:
-                try:
-                    datetime.strptime(start_date_field.value, "%Y-%m-%d")
-                    start_date_field.error_text = None
-                except ValueError:
-                    start_date_field.error_text = "Invalid date format"
-                    has_error = True
+                errors.append("Start date is required")
 
-            if not expiry_date_field.value or not expiry_date_field.value.strip():
-                expiry_date_field.error_text = "Expiry date is required"
-                has_error = True
-            else:
-                try:
-                    datetime.strptime(expiry_date_field.value, "%Y-%m-%d")
-                    expiry_date_field.error_text = None
-                except ValueError:
-                    expiry_date_field.error_text = "Invalid date format"
-                    has_error = True
+            if not no_expiry_check.value:
+                if not expiry_date_field.value or not expiry_date_field.value.strip():
+                    errors.append("Expiry date is required (or check 'No Expiry')")
 
-            if not reminder_field.value:
-                reminder_field.error_text = "Please select reminder period"
-                has_error = True
-            else:
-                reminder_field.error_text = None
+                if not reminder_field.value:
+                    errors.append("Please select reminder period")
+
+                if not alert_time_field.value or not alert_time_field.value.strip():
+                    errors.append("Please select alert time")
+
+                # Validate start < expiry if both dates present
+                if start_date_field.value and expiry_date_field.value:
+                    try:
+                        start_dt = datetime.strptime(start_date_field.value, "%Y-%m-%d")
+                        expiry_dt = datetime.strptime(expiry_date_field.value, "%Y-%m-%d")
+                        if expiry_dt <= start_dt:
+                            errors.append("Expiry date must be after start date")
+                    except ValueError:
+                        errors.append("Invalid date format")
 
             if not notes_field.value or not notes_field.value.strip():
-                notes_field.error_text = "Notes are required"
-                has_error = True
-            else:
-                notes_field.error_text = None
+                errors.append("Notes are required")
 
-            if has_error:
-                page.update()
+            if errors:
+                show_error_dialog(errors)
                 return
 
-            # Validate start < expiry
-            start_dt = datetime.strptime(start_date_field.value, "%Y-%m-%d")
-            expiry_dt = datetime.strptime(expiry_date_field.value, "%Y-%m-%d")
-            if expiry_dt <= start_dt:
-                expiry_date_field.error_text = "Expiry must be after start date"
-                page.update()
-                return
+            expiry_val = "" if no_expiry_check.value else expiry_date_field.value
+            reminder_val = int(reminder_field.value) if reminder_field.value else 7
+            alert_val = alert_time_field.value.strip() if alert_time_field.value else "08:00"
 
             if is_edit:
                 update_document(
@@ -619,9 +851,10 @@ def main(page: ft.Page):
                     name=name_field.value.strip(),
                     category=category_field.value,
                     start_date=start_date_field.value,
-                    expiry_date=expiry_date_field.value,
-                    reminder_days=int(reminder_field.value),
+                    expiry_date=expiry_val,
+                    reminder_days=reminder_val,
                     notes=notes_field.value.strip(),
+                    alert_time=alert_val,
                 )
                 show_snack("Document updated!")
             else:
@@ -629,9 +862,10 @@ def main(page: ft.Page):
                     name=name_field.value.strip(),
                     category=category_field.value,
                     start_date=start_date_field.value,
-                    expiry_date=expiry_date_field.value,
-                    reminder_days=int(reminder_field.value),
+                    expiry_date=expiry_val,
+                    reminder_days=reminder_val,
                     notes=notes_field.value.strip(),
+                    alert_time=alert_val,
                 )
                 show_snack("Document added!")
 
@@ -640,6 +874,8 @@ def main(page: ft.Page):
                 page.overlay.remove(start_date_picker)
             if expiry_date_picker in page.overlay:
                 page.overlay.remove(expiry_date_picker)
+            if time_picker in page.overlay:
+                page.overlay.remove(time_picker)
 
             navigate("dashboard")
 
@@ -648,6 +884,8 @@ def main(page: ft.Page):
                 page.overlay.remove(start_date_picker)
             if expiry_date_picker in page.overlay:
                 page.overlay.remove(expiry_date_picker)
+            if time_picker in page.overlay:
+                page.overlay.remove(time_picker)
             navigate("dashboard")
 
         btn_text = "Update Document" if is_edit else "Save Document"
@@ -683,9 +921,12 @@ def main(page: ft.Page):
                 ft.Container(height=4),
                 start_date_row,
                 ft.Container(height=4),
+                no_expiry_check,
                 expiry_date_row,
                 ft.Container(height=4),
                 reminder_field,
+                ft.Container(height=4),
+                alert_time_row,
                 ft.Container(height=4),
                 notes_field,
                 ft.Container(height=16),
@@ -729,6 +970,242 @@ def main(page: ft.Page):
         )
 
     # =======================
+    # PROFILE VIEW
+    # =======================
+    def build_profile(edit_mode=False):
+        profile = get_profile()
+
+        if not edit_mode:
+            # Display mode
+            def _copy_to_clipboard(val):
+                page.set_clipboard(val)
+                show_snack("Copied!", C.SUCCESS)
+
+            def field_row(icon, label, value):
+                display_val = value or "—"
+                row_controls = [
+                    ft.Icon(icon, size=18, color=C.INFO),
+                    ft.Column(
+                        [
+                            ft.Text(label, size=10, color=C.TEXT2),
+                            ft.Text(display_val, size=13, color=C.TEXT),
+                        ],
+                        spacing=1,
+                        expand=True,
+                    ),
+                ]
+                if value:
+                    row_controls.append(
+                        ft.IconButton(
+                            icon=ft.Icons.COPY_OUTLINED,
+                            icon_color=C.TEXT2,
+                            icon_size=16,
+                            on_click=lambda e, v=display_val: _copy_to_clipboard(v),
+                            tooltip="Copy",
+                        )
+                    )
+                return ft.Container(
+                    content=ft.Row(row_controls, spacing=12),
+                    padding=ft.Padding(left=12, top=10, right=4, bottom=10),
+                    bgcolor=C.CARD,
+                    border_radius=10,
+                    border=_border(),
+                )
+
+            items = [
+                ft.Row(
+                    [
+                        ft.IconButton(
+                            icon=ft.Icons.ARROW_BACK,
+                            icon_color=C.TEXT,
+                            icon_size=20,
+                            on_click=lambda e: navigate("dashboard"),
+                        ),
+                        ft.Text("My Profile", size=20, weight=ft.FontWeight.BOLD, color=C.TEXT),
+                    ],
+                    spacing=4,
+                ),
+                ft.Container(height=8),
+                # Avatar
+                ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.CircleAvatar(
+                                content=ft.Text(
+                                    (profile["full_name"] or "U")[0].upper(),
+                                    size=28, weight=ft.FontWeight.BOLD, color="#fff",
+                                ),
+                                bgcolor=C.INFO,
+                                radius=36,
+                            ),
+                            ft.Text(
+                                profile["full_name"] or "No name set",
+                                size=16, weight=ft.FontWeight.W_600, color=C.TEXT,
+                            ),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=8,
+                    ),
+                    alignment=ft.Alignment(0, 0),
+                    padding=ft.Padding(left=0, top=8, right=0, bottom=16),
+                ),
+                field_row(ft.Icons.EMAIL_OUTLINED, "Email(s)", profile["emails"]),
+                field_row(ft.Icons.PHONE_OUTLINED, "Phone(s)", profile["phones"]),
+                field_row(ft.Icons.BADGE_OUTLINED, "Passport Number", profile["passport_number"]),
+                field_row(ft.Icons.CREDIT_CARD_OUTLINED, "Driving License", profile["driving_license"]),
+                field_row(ft.Icons.CAKE_OUTLINED, "Date of Birth", profile["date_of_birth"]),
+                field_row(ft.Icons.FLAG_OUTLINED, "Nationality", profile["nationality"]),
+                field_row(ft.Icons.HOME_OUTLINED, "Address", profile["address"]),
+                ft.Container(height=12),
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Icon(ft.Icons.EDIT_OUTLINED, color="#ffffff", size=18),
+                            ft.Text("Edit Profile", size=15, weight=ft.FontWeight.W_600, color="#ffffff"),
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=8,
+                    ),
+                    bgcolor=C.INFO,
+                    border_radius=12,
+                    padding=ft.Padding(left=0, top=14, right=0, bottom=14),
+                    on_click=lambda e: navigate("profile_edit"),
+                    ink=True,
+                ),
+            ]
+
+            return ft.Column(items, spacing=8, scroll=ft.ScrollMode.AUTO, expand=True)
+
+        # Edit mode
+        name_f = ft.TextField(
+            label="Full Name", value=profile["full_name"],
+            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
+            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            prefix_icon=ft.Icons.PERSON_OUTLINED,
+        )
+        emails_f = ft.TextField(
+            label="Emails (comma separated)", value=profile["emails"],
+            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
+            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            prefix_icon=ft.Icons.EMAIL_OUTLINED,
+            hint_text="email1@x.com, email2@x.com",
+        )
+        phones_f = ft.TextField(
+            label="Phone Numbers (comma separated)", value=profile["phones"],
+            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
+            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            prefix_icon=ft.Icons.PHONE_OUTLINED,
+            hint_text="+1234567890, +0987654321",
+        )
+        passport_f = ft.TextField(
+            label="Passport Number", value=profile["passport_number"],
+            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
+            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            prefix_icon=ft.Icons.BADGE_OUTLINED,
+        )
+        license_f = ft.TextField(
+            label="Driving License", value=profile["driving_license"],
+            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
+            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            prefix_icon=ft.Icons.CREDIT_CARD_OUTLINED,
+        )
+        dob_f = ft.TextField(
+            label="Date of Birth", value=profile["date_of_birth"],
+            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
+            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            prefix_icon=ft.Icons.CAKE_OUTLINED,
+            hint_text="YYYY-MM-DD",
+        )
+        nationality_f = ft.TextField(
+            label="Nationality", value=profile["nationality"],
+            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
+            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            prefix_icon=ft.Icons.FLAG_OUTLINED,
+        )
+        address_f = ft.TextField(
+            label="Address", value=profile["address"],
+            multiline=True, min_lines=2, max_lines=3,
+            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
+            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            prefix_icon=ft.Icons.HOME_OUTLINED,
+        )
+
+        def handle_profile_save(e):
+            save_profile(
+                full_name=name_f.value.strip() if name_f.value else "",
+                emails=emails_f.value.strip() if emails_f.value else "",
+                phones=phones_f.value.strip() if phones_f.value else "",
+                passport_number=passport_f.value.strip() if passport_f.value else "",
+                driving_license=license_f.value.strip() if license_f.value else "",
+                address=address_f.value.strip() if address_f.value else "",
+                date_of_birth=dob_f.value.strip() if dob_f.value else "",
+                nationality=nationality_f.value.strip() if nationality_f.value else "",
+            )
+            show_snack("Profile saved!")
+            navigate("profile")
+
+        return ft.Column(
+            [
+                ft.Row(
+                    [
+                        ft.IconButton(
+                            icon=ft.Icons.ARROW_BACK,
+                            icon_color=C.TEXT,
+                            icon_size=20,
+                            on_click=lambda e: navigate("profile"),
+                        ),
+                        ft.Text("Edit Profile", size=20, weight=ft.FontWeight.BOLD, color=C.TEXT),
+                    ],
+                    spacing=4,
+                ),
+                ft.Container(height=8),
+                name_f,
+                emails_f,
+                phones_f,
+                passport_f,
+                license_f,
+                dob_f,
+                nationality_f,
+                address_f,
+                ft.Container(height=12),
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Icon(ft.Icons.SAVE_OUTLINED, color="#ffffff", size=18),
+                            ft.Text("Save Profile", size=15, weight=ft.FontWeight.W_600, color="#ffffff"),
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=8,
+                    ),
+                    bgcolor=C.SUCCESS,
+                    border_radius=12,
+                    padding=ft.Padding(left=0, top=14, right=0, bottom=14),
+                    on_click=handle_profile_save,
+                    ink=True,
+                ),
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Icon(ft.Icons.CLOSE, color=C.TEXT2, size=16),
+                            ft.Text("Cancel", size=14, weight=ft.FontWeight.W_500, color=C.TEXT2),
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=6,
+                    ),
+                    bgcolor="transparent",
+                    border_radius=12,
+                    border=_border(C.BORDER),
+                    padding=ft.Padding(left=0, top=12, right=0, bottom=12),
+                    on_click=lambda e: navigate("profile"),
+                    ink=True,
+                ),
+            ],
+            spacing=10,
+            scroll=ft.ScrollMode.AUTO,
+            expand=True,
+        )
+
+    # =======================
     # NAVIGATION
     # =======================
     content_area = ft.Container(expand=True, padding=16)
@@ -746,6 +1223,10 @@ def main(page: ft.Page):
         elif view_name == "edit":
             content_area.content = build_form(doc=data)
             nav_bar.selected_index = 1
+        elif view_name == "profile":
+            content_area.content = build_profile(edit_mode=False)
+        elif view_name == "profile_edit":
+            content_area.content = build_profile(edit_mode=True)
         page.update()
 
     def on_nav_change(e):
@@ -796,6 +1277,9 @@ def main(page: ft.Page):
     )
 
     navigate("dashboard")
+
+    # Show reminder on app start
+    check_and_show_reminders()
 
 
 ft.run(main)
