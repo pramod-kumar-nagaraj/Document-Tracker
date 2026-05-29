@@ -32,7 +32,9 @@ def init_db():
 
     # Add alert_time column if upgrading from old schema
     try:
-        cursor.execute("ALTER TABLE documents ADD COLUMN alert_time TEXT DEFAULT '08:00'")
+        cursor.execute(
+            "ALTER TABLE documents ADD COLUMN alert_time TEXT DEFAULT '08:00'"
+        )
     except sqlite3.OperationalError:
         pass  # Column already exists
 
@@ -59,7 +61,9 @@ def init_db():
     conn.close()
 
 
-def add_document(name, category, start_date, expiry_date, reminder_days, notes, alert_time="08:00"):
+def add_document(
+    name, category, start_date, expiry_date, reminder_days, notes, alert_time="08:00"
+):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -104,7 +108,16 @@ def delete_document(doc_id):
     conn.close()
 
 
-def update_document(doc_id, name, category, start_date, expiry_date, reminder_days, notes, alert_time="08:00"):
+def update_document(
+    doc_id,
+    name,
+    category,
+    start_date,
+    expiry_date,
+    reminder_days,
+    notes,
+    alert_time="08:00",
+):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -114,7 +127,16 @@ def update_document(doc_id, name, category, start_date, expiry_date, reminder_da
         SET name=?, category=?, start_date=?, expiry_date=?, reminder_days=?, alert_time=?, notes=?
         WHERE id=?
         """,
-        (name, category, start_date, expiry_date, reminder_days, alert_time, notes, doc_id),
+        (
+            name,
+            category,
+            start_date,
+            expiry_date,
+            reminder_days,
+            alert_time,
+            notes,
+            doc_id,
+        ),
     )
 
     conn.commit()
@@ -128,14 +150,10 @@ def get_document_stats():
     cursor.execute("SELECT COUNT(*) FROM documents")
     total = cursor.fetchone()[0]
 
-    cursor.execute(
-        "SELECT COUNT(*) FROM documents WHERE expiry_date >= date('now')"
-    )
+    cursor.execute("SELECT COUNT(*) FROM documents WHERE expiry_date >= date('now')")
     active = cursor.fetchone()[0]
 
-    cursor.execute(
-        "SELECT COUNT(*) FROM documents WHERE expiry_date < date('now')"
-    )
+    cursor.execute("SELECT COUNT(*) FROM documents WHERE expiry_date < date('now')")
     expired = cursor.fetchone()[0]
 
     cursor.execute(
@@ -165,13 +183,27 @@ def get_profile():
     if row:
         return dict(row)
     return {
-        "full_name": "", "emails": "", "phones": "",
-        "passport_number": "", "driving_license": "",
-        "address": "", "date_of_birth": "", "nationality": "",
+        "full_name": "",
+        "emails": "",
+        "phones": "",
+        "passport_number": "",
+        "driving_license": "",
+        "address": "",
+        "date_of_birth": "",
+        "nationality": "",
     }
 
 
-def save_profile(full_name, emails, phones, passport_number, driving_license, address, date_of_birth, nationality):
+def save_profile(
+    full_name,
+    emails,
+    phones,
+    passport_number,
+    driving_license,
+    address,
+    date_of_birth,
+    nationality,
+):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -181,7 +213,16 @@ def save_profile(full_name, emails, phones, passport_number, driving_license, ad
             driving_license=?, address=?, date_of_birth=?, nationality=?
         WHERE id = 1
         """,
-        (full_name, emails, phones, passport_number, driving_license, address, date_of_birth, nationality),
+        (
+            full_name,
+            emails,
+            phones,
+            passport_number,
+            driving_license,
+            address,
+            date_of_birth,
+            nationality,
+        ),
     )
     conn.commit()
     conn.close()

@@ -6,6 +6,7 @@ def show_notification(title, message):
     try:
         if sys.platform == "win32":
             from plyer import notification
+
             notification.notify(title=title, message=message, timeout=10)
         else:
             # On Android/other platforms, the in-app snackbar handles reminders

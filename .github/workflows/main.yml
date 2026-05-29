@@ -17,8 +17,37 @@ env:
   FLET_CLI_NO_RICH_OUTPUT: "1"
 
 jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r dev-requirements.txt
+
+      - name: Lint (ruff)
+        run: ruff check src/ tests/
+
+      - name: Format check (ruff)
+        run: ruff format --check src/ tests/
+
+      - name: Run tests
+        run: pytest tests/ -v
+
   build-apk:
     name: Build Android APK
+    needs: lint-and-test
     runs-on: ubuntu-latest
 
     steps:
@@ -49,15 +78,13 @@ jobs:
           pip install -r requirements.txt
 
       # ------------------------------------------------------------------ #
-      # 3. Verify
+      # 3. Verify toolchain
       # ------------------------------------------------------------------ #
       - name: Verify toolchain
         run: |
           java -version
           python --version
           flet --version
-          echo "--- project layout ---"
-          find . -maxdepth 3 -not -path './.git/*' | sort
 
       # ------------------------------------------------------------------ #
       # 4. Build (Flet downloads its own Flutter SDK automatically)

@@ -1,5 +1,5 @@
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from database import get_documents
 from notifications import show_notification
@@ -13,7 +13,6 @@ def check_reminders():
     docs = get_documents()
     now = datetime.now()
     today = now.date()
-    current_time = now.strftime("%H:%M")
 
     for doc in docs:
         name = doc["name"]
@@ -43,12 +42,20 @@ def check_reminders():
                 if days_left == 0:
                     show_notification("Document Expired!", f"{name} expires TODAY!")
                 else:
-                    show_notification("Expiry Reminder", f"{name} expires in {days_left} day(s)")
+                    show_notification(
+                        "Expiry Reminder", f"{name} expires in {days_left} day(s)"
+                    )
 
         except (ValueError, TypeError):
             continue
 
 
 def start_scheduler():
-    scheduler.add_job(check_reminders, "interval", minutes=30, id="reminder_check", replace_existing=True)
+    scheduler.add_job(
+        check_reminders,
+        "interval",
+        minutes=30,
+        id="reminder_check",
+        replace_existing=True,
+    )
     scheduler.start()

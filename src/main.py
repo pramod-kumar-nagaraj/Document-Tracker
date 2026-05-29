@@ -66,7 +66,9 @@ def main(page: ft.Page):
                 expiry = datetime.strptime(doc["expiry_date"], "%Y-%m-%d").date()
                 days_left = (expiry - today).days
                 reminder_days = doc["reminder_days"] or 7
-                alert_time = doc["alert_time"] if "alert_time" in doc.keys() else "08:00"
+                alert_time = (
+                    doc["alert_time"] if "alert_time" in doc.keys() else "08:00"
+                )
 
                 # Only alert if within the reminder window
                 if days_left < 0:
@@ -80,7 +82,9 @@ def main(page: ft.Page):
                 except (ValueError, TypeError):
                     alert_hour, alert_min = 8, 0
 
-                if now.hour > alert_hour or (now.hour == alert_hour and now.minute >= alert_min):
+                if now.hour > alert_hour or (
+                    now.hour == alert_hour and now.minute >= alert_min
+                ):
                     if days_left == 0:
                         show_snack(f"🚨 {doc['name']} expires TODAY!", C.ACCENT)
                         break
@@ -97,13 +101,13 @@ def main(page: ft.Page):
     # SNACKBAR
     # =======================
     def show_snack(msg, color=C.SUCCESS):
-        page.snack_bar = ft.SnackBar(
-            content=ft.Text(msg, color="#fff", size=13),
-            bgcolor=color,
-            duration=2500,
+        page.show_dialog(
+            ft.SnackBar(
+                content=ft.Text(msg, color="#fff", size=13),
+                bgcolor=color,
+                duration=2500,
+            )
         )
-        page.snack_bar.open = True
-        page.update()
 
     # =======================
     # HELPERS
@@ -180,7 +184,12 @@ def main(page: ft.Page):
             title=ft.Row(
                 [
                     ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=20, color=C.WARNING),
-                    ft.Text("Validation Error", size=15, weight=ft.FontWeight.W_600, color=C.WARNING),
+                    ft.Text(
+                        "Validation Error",
+                        size=15,
+                        weight=ft.FontWeight.W_600,
+                        color=C.WARNING,
+                    ),
                 ],
                 spacing=8,
             ),
@@ -215,7 +224,9 @@ def main(page: ft.Page):
                     ft.Row(
                         [
                             ft.Container(
-                                content=ft.Icon(ft.Icons.DESCRIPTION_OUTLINED, color=C.INFO, size=18),
+                                content=ft.Icon(
+                                    ft.Icons.DESCRIPTION_OUTLINED, color=C.INFO, size=18
+                                ),
                                 bgcolor=C.INPUT_BG,
                                 border_radius=8,
                                 padding=8,
@@ -223,8 +234,11 @@ def main(page: ft.Page):
                             ft.Column(
                                 [
                                     ft.Text(
-                                        name, size=14, weight=ft.FontWeight.W_500,
-                                        color=C.TEXT, overflow=ft.TextOverflow.ELLIPSIS,
+                                        name,
+                                        size=14,
+                                        weight=ft.FontWeight.W_500,
+                                        color=C.TEXT,
+                                        overflow=ft.TextOverflow.ELLIPSIS,
                                         max_lines=1,
                                     ),
                                     ft.Text(category, size=11, color=C.TEXT2),
@@ -233,7 +247,12 @@ def main(page: ft.Page):
                                 expand=True,
                             ),
                             ft.Container(
-                                content=ft.Text(status_text, size=10, weight=ft.FontWeight.W_500, color=status_color),
+                                content=ft.Text(
+                                    status_text,
+                                    size=10,
+                                    weight=ft.FontWeight.W_500,
+                                    color=status_color,
+                                ),
                                 bgcolor=badge_bg,
                                 border_radius=10,
                                 padding=ft.Padding(left=8, top=4, right=8, bottom=4),
@@ -293,12 +312,16 @@ def main(page: ft.Page):
                     ft.Row(
                         [
                             ft.Icon(icon, color=color, size=16),
-                            ft.Text(title, size=13, weight=ft.FontWeight.W_600, color=color),
+                            ft.Text(
+                                title, size=13, weight=ft.FontWeight.W_600, color=color
+                            ),
                         ],
                         spacing=6,
                     ),
                     ft.Container(
-                        content=ft.Text(str(count), size=11, color=color, weight=ft.FontWeight.BOLD),
+                        content=ft.Text(
+                            str(count), size=11, color=color, weight=ft.FontWeight.BOLD
+                        ),
                         bgcolor=C.SURFACE,
                         border_radius=10,
                         padding=ft.Padding(left=8, top=3, right=8, bottom=3),
@@ -347,7 +370,12 @@ def main(page: ft.Page):
                 ft.Container(
                     content=ft.Column(
                         [
-                            ft.Text(str(stats["total"]), size=20, weight=ft.FontWeight.BOLD, color=C.INFO),
+                            ft.Text(
+                                str(stats["total"]),
+                                size=20,
+                                weight=ft.FontWeight.BOLD,
+                                color=C.INFO,
+                            ),
                             ft.Text("Total", size=10, color=C.TEXT2),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -362,7 +390,12 @@ def main(page: ft.Page):
                 ft.Container(
                     content=ft.Column(
                         [
-                            ft.Text(str(stats["active"]), size=20, weight=ft.FontWeight.BOLD, color=C.SUCCESS),
+                            ft.Text(
+                                str(stats["active"]),
+                                size=20,
+                                weight=ft.FontWeight.BOLD,
+                                color=C.SUCCESS,
+                            ),
                             ft.Text("Active", size=10, color=C.TEXT2),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -377,7 +410,12 @@ def main(page: ft.Page):
                 ft.Container(
                     content=ft.Column(
                         [
-                            ft.Text(str(stats["expiring_soon"]), size=20, weight=ft.FontWeight.BOLD, color=C.WARNING),
+                            ft.Text(
+                                str(stats["expiring_soon"]),
+                                size=20,
+                                weight=ft.FontWeight.BOLD,
+                                color=C.WARNING,
+                            ),
                             ft.Text("Soon", size=10, color=C.TEXT2),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -392,7 +430,12 @@ def main(page: ft.Page):
                 ft.Container(
                     content=ft.Column(
                         [
-                            ft.Text(str(stats["expired"]), size=20, weight=ft.FontWeight.BOLD, color=C.ACCENT),
+                            ft.Text(
+                                str(stats["expired"]),
+                                size=20,
+                                weight=ft.FontWeight.BOLD,
+                                color=C.ACCENT,
+                            ),
                             ft.Text("Expired", size=10, color=C.TEXT2),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -409,45 +452,49 @@ def main(page: ft.Page):
         )
 
         items = []
-        items.append(
-            ft.Row(
-                [
-                    ft.Text("Dashboard", size=22, weight=ft.FontWeight.BOLD, color=C.TEXT),
-                    ft.IconButton(
-                        icon=ft.Icons.ACCOUNT_CIRCLE_OUTLINED,
-                        icon_color=C.INFO,
-                        icon_size=28,
-                        on_click=lambda e: navigate("profile"),
-                        tooltip="Profile",
-                    ),
-                ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            )
-        )
         items.append(ft.Container(height=4))
         items.append(stat_row)
 
         # Expired section
         if expired_docs:
-            items.append(section_header("Expired", ft.Icons.ERROR_OUTLINE, C.ACCENT, len(expired_docs)))
+            items.append(
+                section_header(
+                    "Expired", ft.Icons.ERROR_OUTLINE, C.ACCENT, len(expired_docs)
+                )
+            )
             for doc in expired_docs:
                 items.append(doc_card(doc, on_edit, on_delete))
 
         # Expiring soon section
         if expiring_docs:
-            items.append(section_header("Expiring Soon", ft.Icons.WARNING_AMBER_ROUNDED, C.WARNING, len(expiring_docs)))
+            items.append(
+                section_header(
+                    "Expiring Soon",
+                    ft.Icons.WARNING_AMBER_ROUNDED,
+                    C.WARNING,
+                    len(expiring_docs),
+                )
+            )
             for doc in expiring_docs:
                 items.append(doc_card(doc, on_edit, on_delete))
 
         # Active section
         if active_docs:
-            items.append(section_header("Active", ft.Icons.CHECK_CIRCLE_OUTLINE, C.SUCCESS, len(active_docs)))
+            items.append(
+                section_header(
+                    "Active", ft.Icons.CHECK_CIRCLE_OUTLINE, C.SUCCESS, len(active_docs)
+                )
+            )
             for doc in active_docs:
                 items.append(doc_card(doc, on_edit, on_delete))
 
         # No Expiry section
         if no_expiry_docs:
-            items.append(section_header("No Expiry", ft.Icons.ALL_INCLUSIVE, C.TEXT2, len(no_expiry_docs)))
+            items.append(
+                section_header(
+                    "No Expiry", ft.Icons.ALL_INCLUSIVE, C.TEXT2, len(no_expiry_docs)
+                )
+            )
             for doc in no_expiry_docs:
                 items.append(doc_card(doc, on_edit, on_delete))
 
@@ -458,14 +505,53 @@ def main(page: ft.Page):
                     [
                         ft.Icon(ft.Icons.INBOX_OUTLINED, size=48, color=C.TEXT2),
                         ft.Text("No documents yet", size=14, color=C.TEXT2),
-                        ft.TextButton("Add your first document", on_click=lambda e: navigate("add")),
+                        ft.TextButton(
+                            "Add your first document",
+                            on_click=lambda e: navigate("add"),
+                        ),
                     ],
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=8,
                 )
             )
 
-        return ft.Column(items, spacing=8, scroll=ft.ScrollMode.AUTO, expand=True)
+        # Fixed header
+        header = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Column(
+                        [
+                            ft.Text(
+                                "Dashboard",
+                                size=22,
+                                weight=ft.FontWeight.BOLD,
+                                color=C.TEXT,
+                            ),
+                            ft.Text("v1.0-beta", size=10, color=C.TEXT2),
+                        ],
+                        spacing=0,
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.ACCOUNT_CIRCLE_OUTLINED,
+                        icon_color=C.INFO,
+                        icon_size=28,
+                        on_click=lambda e: navigate("profile"),
+                        tooltip="Profile",
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+            padding=ft.Padding(left=0, top=0, right=0, bottom=4),
+        )
+
+        return ft.Column(
+            [
+                header,
+                ft.Column(items, spacing=8, scroll=ft.ScrollMode.AUTO, expand=True),
+            ],
+            spacing=0,
+            expand=True,
+        )
 
     # =======================
     # DOCUMENTS VIEW (search)
@@ -520,27 +606,37 @@ def main(page: ft.Page):
         search_field.on_change = lambda e: load_docs(search_field.value)
         load_docs()
 
+        # Fixed header
+        header = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Text(
+                        "All Documents",
+                        size=22,
+                        weight=ft.FontWeight.BOLD,
+                        color=C.TEXT,
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.ACCOUNT_CIRCLE_OUTLINED,
+                        icon_color=C.INFO,
+                        icon_size=28,
+                        on_click=lambda e: navigate("profile"),
+                        tooltip="Profile",
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+            padding=ft.Padding(left=0, top=0, right=0, bottom=4),
+        )
+
         return ft.Column(
             [
-                ft.Row(
-                    [
-                        ft.Text("All Documents", size=22, weight=ft.FontWeight.BOLD, color=C.TEXT),
-                        ft.IconButton(
-                            icon=ft.Icons.ACCOUNT_CIRCLE_OUTLINED,
-                            icon_color=C.INFO,
-                            icon_size=28,
-                            on_click=lambda e: navigate("profile"),
-                            tooltip="Profile",
-                        ),
-                    ],
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                ),
+                header,
                 search_field,
                 ft.Container(height=4),
-                docs_column,
+                ft.Column([docs_column], scroll=ft.ScrollMode.AUTO, expand=True),
             ],
             spacing=8,
-            scroll=ft.ScrollMode.AUTO,
             expand=True,
         )
 
@@ -828,7 +924,9 @@ def main(page: ft.Page):
                 if start_date_field.value and expiry_date_field.value:
                     try:
                         start_dt = datetime.strptime(start_date_field.value, "%Y-%m-%d")
-                        expiry_dt = datetime.strptime(expiry_date_field.value, "%Y-%m-%d")
+                        expiry_dt = datetime.strptime(
+                            expiry_date_field.value, "%Y-%m-%d"
+                        )
                         if expiry_dt <= start_dt:
                             errors.append("Expiry date must be after start date")
                     except ValueError:
@@ -843,7 +941,9 @@ def main(page: ft.Page):
 
             expiry_val = "" if no_expiry_check.value else expiry_date_field.value
             reminder_val = int(reminder_field.value) if reminder_field.value else 7
-            alert_val = alert_time_field.value.strip() if alert_time_field.value else "08:00"
+            alert_val = (
+                alert_time_field.value.strip() if alert_time_field.value else "08:00"
+            )
 
             if is_edit:
                 update_document(
@@ -901,7 +1001,9 @@ def main(page: ft.Page):
                             icon_size=20,
                             on_click=handle_cancel,
                         ),
-                        ft.Text(title, size=20, weight=ft.FontWeight.BOLD, color=C.TEXT),
+                        ft.Text(
+                            title, size=20, weight=ft.FontWeight.BOLD, color=C.TEXT
+                        ),
                     ],
                     spacing=4,
                 ),
@@ -935,7 +1037,12 @@ def main(page: ft.Page):
                     content=ft.Row(
                         [
                             ft.Icon(btn_icon, color="#ffffff", size=18),
-                            ft.Text(btn_text, size=15, weight=ft.FontWeight.W_600, color="#ffffff"),
+                            ft.Text(
+                                btn_text,
+                                size=15,
+                                weight=ft.FontWeight.W_600,
+                                color="#ffffff",
+                            ),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
                         spacing=8,
@@ -951,7 +1058,12 @@ def main(page: ft.Page):
                     content=ft.Row(
                         [
                             ft.Icon(ft.Icons.CLOSE, color=C.TEXT2, size=16),
-                            ft.Text("Cancel", size=14, weight=ft.FontWeight.W_500, color=C.TEXT2),
+                            ft.Text(
+                                "Cancel",
+                                size=14,
+                                weight=ft.FontWeight.W_500,
+                                color=C.TEXT2,
+                            ),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
                         spacing=6,
@@ -1021,7 +1133,12 @@ def main(page: ft.Page):
                             icon_size=20,
                             on_click=lambda e: navigate("dashboard"),
                         ),
-                        ft.Text("My Profile", size=20, weight=ft.FontWeight.BOLD, color=C.TEXT),
+                        ft.Text(
+                            "My Profile",
+                            size=20,
+                            weight=ft.FontWeight.BOLD,
+                            color=C.TEXT,
+                        ),
                     ],
                     spacing=4,
                 ),
@@ -1033,14 +1150,18 @@ def main(page: ft.Page):
                             ft.CircleAvatar(
                                 content=ft.Text(
                                     (profile["full_name"] or "U")[0].upper(),
-                                    size=28, weight=ft.FontWeight.BOLD, color="#fff",
+                                    size=28,
+                                    weight=ft.FontWeight.BOLD,
+                                    color="#fff",
                                 ),
                                 bgcolor=C.INFO,
                                 radius=36,
                             ),
                             ft.Text(
                                 profile["full_name"] or "No name set",
-                                size=16, weight=ft.FontWeight.W_600, color=C.TEXT,
+                                size=16,
+                                weight=ft.FontWeight.W_600,
+                                color=C.TEXT,
                             ),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -1051,17 +1172,34 @@ def main(page: ft.Page):
                 ),
                 field_row(ft.Icons.EMAIL_OUTLINED, "Email(s)", profile["emails"]),
                 field_row(ft.Icons.PHONE_OUTLINED, "Phone(s)", profile["phones"]),
-                field_row(ft.Icons.BADGE_OUTLINED, "Passport Number", profile["passport_number"]),
-                field_row(ft.Icons.CREDIT_CARD_OUTLINED, "Driving License", profile["driving_license"]),
-                field_row(ft.Icons.CAKE_OUTLINED, "Date of Birth", profile["date_of_birth"]),
-                field_row(ft.Icons.FLAG_OUTLINED, "Nationality", profile["nationality"]),
+                field_row(
+                    ft.Icons.BADGE_OUTLINED,
+                    "Passport Number",
+                    profile["passport_number"],
+                ),
+                field_row(
+                    ft.Icons.CREDIT_CARD_OUTLINED,
+                    "Driving License",
+                    profile["driving_license"],
+                ),
+                field_row(
+                    ft.Icons.CAKE_OUTLINED, "Date of Birth", profile["date_of_birth"]
+                ),
+                field_row(
+                    ft.Icons.FLAG_OUTLINED, "Nationality", profile["nationality"]
+                ),
                 field_row(ft.Icons.HOME_OUTLINED, "Address", profile["address"]),
                 ft.Container(height=12),
                 ft.Container(
                     content=ft.Row(
                         [
                             ft.Icon(ft.Icons.EDIT_OUTLINED, color="#ffffff", size=18),
-                            ft.Text("Edit Profile", size=15, weight=ft.FontWeight.W_600, color="#ffffff"),
+                            ft.Text(
+                                "Edit Profile",
+                                size=15,
+                                weight=ft.FontWeight.W_600,
+                                color="#ffffff",
+                            ),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
                         spacing=8,
@@ -1078,55 +1216,89 @@ def main(page: ft.Page):
 
         # Edit mode
         name_f = ft.TextField(
-            label="Full Name", value=profile["full_name"],
-            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
-            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            label="Full Name",
+            value=profile["full_name"],
+            border_radius=8,
+            bgcolor=C.INPUT_BG,
+            border_color=C.BORDER,
+            color=C.TEXT,
+            label_style=ft.TextStyle(color=C.TEXT2),
             prefix_icon=ft.Icons.PERSON_OUTLINED,
         )
         emails_f = ft.TextField(
-            label="Emails (comma separated)", value=profile["emails"],
-            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
-            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            label="Emails (comma separated)",
+            value=profile["emails"],
+            border_radius=8,
+            bgcolor=C.INPUT_BG,
+            border_color=C.BORDER,
+            color=C.TEXT,
+            label_style=ft.TextStyle(color=C.TEXT2),
             prefix_icon=ft.Icons.EMAIL_OUTLINED,
             hint_text="email1@x.com, email2@x.com",
         )
         phones_f = ft.TextField(
-            label="Phone Numbers (comma separated)", value=profile["phones"],
-            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
-            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            label="Phone Numbers (comma separated)",
+            value=profile["phones"],
+            border_radius=8,
+            bgcolor=C.INPUT_BG,
+            border_color=C.BORDER,
+            color=C.TEXT,
+            label_style=ft.TextStyle(color=C.TEXT2),
             prefix_icon=ft.Icons.PHONE_OUTLINED,
             hint_text="+1234567890, +0987654321",
         )
         passport_f = ft.TextField(
-            label="Passport Number", value=profile["passport_number"],
-            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
-            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            label="Passport Number",
+            value=profile["passport_number"],
+            border_radius=8,
+            bgcolor=C.INPUT_BG,
+            border_color=C.BORDER,
+            color=C.TEXT,
+            label_style=ft.TextStyle(color=C.TEXT2),
             prefix_icon=ft.Icons.BADGE_OUTLINED,
         )
         license_f = ft.TextField(
-            label="Driving License", value=profile["driving_license"],
-            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
-            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            label="Driving License",
+            value=profile["driving_license"],
+            border_radius=8,
+            bgcolor=C.INPUT_BG,
+            border_color=C.BORDER,
+            color=C.TEXT,
+            label_style=ft.TextStyle(color=C.TEXT2),
             prefix_icon=ft.Icons.CREDIT_CARD_OUTLINED,
         )
         dob_f = ft.TextField(
-            label="Date of Birth", value=profile["date_of_birth"],
-            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
-            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            label="Date of Birth",
+            value=profile["date_of_birth"],
+            border_radius=8,
+            bgcolor=C.INPUT_BG,
+            border_color=C.BORDER,
+            color=C.TEXT,
+            label_style=ft.TextStyle(color=C.TEXT2),
             prefix_icon=ft.Icons.CAKE_OUTLINED,
             hint_text="YYYY-MM-DD",
         )
         nationality_f = ft.TextField(
-            label="Nationality", value=profile["nationality"],
-            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
-            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            label="Nationality",
+            value=profile["nationality"],
+            border_radius=8,
+            bgcolor=C.INPUT_BG,
+            border_color=C.BORDER,
+            color=C.TEXT,
+            label_style=ft.TextStyle(color=C.TEXT2),
             prefix_icon=ft.Icons.FLAG_OUTLINED,
         )
         address_f = ft.TextField(
-            label="Address", value=profile["address"],
-            multiline=True, min_lines=2, max_lines=3,
-            border_radius=8, bgcolor=C.INPUT_BG, border_color=C.BORDER,
-            color=C.TEXT, label_style=ft.TextStyle(color=C.TEXT2),
+            label="Address",
+            value=profile["address"],
+            multiline=True,
+            min_lines=2,
+            max_lines=3,
+            border_radius=8,
+            bgcolor=C.INPUT_BG,
+            border_color=C.BORDER,
+            color=C.TEXT,
+            label_style=ft.TextStyle(color=C.TEXT2),
             prefix_icon=ft.Icons.HOME_OUTLINED,
         )
 
@@ -1154,7 +1326,12 @@ def main(page: ft.Page):
                             icon_size=20,
                             on_click=lambda e: navigate("profile"),
                         ),
-                        ft.Text("Edit Profile", size=20, weight=ft.FontWeight.BOLD, color=C.TEXT),
+                        ft.Text(
+                            "Edit Profile",
+                            size=20,
+                            weight=ft.FontWeight.BOLD,
+                            color=C.TEXT,
+                        ),
                     ],
                     spacing=4,
                 ),
@@ -1172,7 +1349,12 @@ def main(page: ft.Page):
                     content=ft.Row(
                         [
                             ft.Icon(ft.Icons.SAVE_OUTLINED, color="#ffffff", size=18),
-                            ft.Text("Save Profile", size=15, weight=ft.FontWeight.W_600, color="#ffffff"),
+                            ft.Text(
+                                "Save Profile",
+                                size=15,
+                                weight=ft.FontWeight.W_600,
+                                color="#ffffff",
+                            ),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
                         spacing=8,
@@ -1187,7 +1369,12 @@ def main(page: ft.Page):
                     content=ft.Row(
                         [
                             ft.Icon(ft.Icons.CLOSE, color=C.TEXT2, size=16),
-                            ft.Text("Cancel", size=14, weight=ft.FontWeight.W_500, color=C.TEXT2),
+                            ft.Text(
+                                "Cancel",
+                                size=14,
+                                weight=ft.FontWeight.W_500,
+                                color=C.TEXT2,
+                            ),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
                         spacing=6,

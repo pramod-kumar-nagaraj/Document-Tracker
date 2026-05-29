@@ -53,5 +53,12 @@ adaptive_icon_background = "#0f0f1a"
 app = true
 packages = true
 
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
 [tool.flet.cleanup]
 packages = true
