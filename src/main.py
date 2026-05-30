@@ -1,4 +1,6 @@
 import flet as ft
+import shutil
+import os
 from datetime import datetime
 from database import (
     init_db,
@@ -9,6 +11,7 @@ from database import (
     get_document_stats,
     get_profile,
     save_profile,
+    DB_PATH,
 )
 from scheduler import start_scheduler
 
@@ -23,7 +26,7 @@ class C:
     ACCENT = "#e94560"
     ACCENT_LIGHT = "#ff6b6b"
     SUCCESS = "#00d2d3"
-    WARNING = "#feca57"
+    WARNING = "#baa16d"
     INFO = "#54a0ff"
     TEXT = "#ffffff"
     TEXT2 = "#8a8aa0"
@@ -52,6 +55,331 @@ def main(page: ft.Page):
 
     init_db()
     start_scheduler()
+
+    # =======================
+    # ABOUT DIALOG
+    # =======================
+    def show_about_dialog():
+        def close_dlg(e):
+            about_dlg.open = False
+            page.update()
+
+        about_dlg = ft.AlertDialog(
+            modal=False,
+            title=ft.Row(
+                [
+                    ft.Icon(ft.Icons.INFO_OUTLINE, size=20, color=C.INFO),
+                    ft.Text(
+                        "About DocTracker",
+                        size=16,
+                        weight=ft.FontWeight.W_600,
+                        color=C.TEXT,
+                    ),
+                ],
+                spacing=8,
+            ),
+            bgcolor=C.SURFACE,
+            content=ft.Column(
+                [
+                    ft.Text(
+                        "DocTracker", size=18, weight=ft.FontWeight.BOLD, color=C.TEXT
+                    ),
+                    ft.Text("v1.0-beta", size=12, color=C.TEXT2),
+                    ft.Container(height=8),
+                    ft.Text(
+                        "A document expiry tracker. "
+                        "Runs entirely offline — no cloud, no accounts, your data stays on your device.",
+                        size=13,
+                        color=C.TEXT2,
+                    ),
+                    ft.Container(height=6),
+                    ft.Text(
+                        "• Track passports, licenses, insurance, certificates & more",
+                        size=12,
+                        color=C.TEXT2,
+                    ),
+                    ft.Text(
+                        "• In-app reminders before documents expire",
+                        size=12,
+                        color=C.TEXT2,
+                    ),
+                    ft.Text(
+                        "• Custom reminder windows (1–90 days) & daily alert times",
+                        size=12,
+                        color=C.TEXT2,
+                    ),
+                    ft.Text(
+                        "• Store profile details for quick reference & copy",
+                        size=12,
+                        color=C.TEXT2,
+                    ),
+                    ft.Text(
+                        "• Search, filter & organize by status", size=12, color=C.TEXT2
+                    ),
+                    ft.Text(
+                        "• Dark themed UI optimized for mobile", size=12, color=C.TEXT2
+                    ),
+                    ft.Container(height=12),
+                    ft.Row(
+                        [
+                            ft.Icon(ft.Icons.CODE, size=14, color=C.SUCCESS),
+                            ft.Text(
+                                "Developer: Pramod Kumar Nagaraj", size=13, color=C.TEXT
+                            ),
+                        ],
+                        spacing=6,
+                    ),
+                    ft.Container(height=8),
+                    ft.Text(
+                        "© 2026 Pramod Kumar Nagaraj. All rights reserved.",
+                        size=11,
+                        color=C.TEXT2,
+                    ),
+                ],
+                spacing=4,
+                tight=True,
+            ),
+            actions=[
+                ft.TextButton("Close", on_click=close_dlg),
+            ],
+        )
+        page.overlay.append(about_dlg)
+        about_dlg.open = True
+        page.update()
+
+    # =======================
+    # THEME TOGGLE
+    # =======================
+    def toggle_theme():
+        show_snack("No support for the light theme yet.", C.WARNING)
+
+    def on_menu_select(e):
+        if e.control.data == "theme":
+            toggle_theme()
+        elif e.control.data == "about":
+            show_about_dialog()
+        elif e.control.data == "backup":
+            show_backup_restore()
+
+    # =======================
+    # BACKUP & RESTORE
+    # =======================
+    file_picker = ft.FilePicker()
+    page.services.append(file_picker)
+
+    async def handle_export(e):
+        try:
+            # Checkpoint WAL to ensure all data is in the main file
+            import sqlite3 as _sql
+
+            _conn = _sql.connect(DB_PATH)
+            _conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            _conn.close()
+
+            with open(DB_PATH, "rb") as f:
+                db_bytes = f.read()
+            result = await file_picker.save_file(
+                dialog_title="Export Database",
+                file_name="doctracker_backup.db",
+                allowed_extensions=["db"],
+                file_type=ft.FilePickerFileType.CUSTOM,
+                src_bytes=db_bytes,
+            )
+            if result:
+                show_snack("Database exported successfully!", C.SUCCESS)
+        except Exception as ex:
+            show_snack(f"Export failed: {ex}", C.ACCENT)
+
+    async def handle_import(e):
+        try:
+            files = await file_picker.pick_files(
+                dialog_title="Select Database to Import",
+                allowed_extensions=["db"],
+                file_type=ft.FilePickerFileType.CUSTOM,
+                allow_multiple=False,
+            )
+            if not files or len(files) == 0:
+                return
+
+            src = files[0].path
+            if not src:
+                show_snack("Could not access the selected file.", C.ACCENT)
+                return
+
+            # Validate it's a valid SQLite file with the expected table
+            import sqlite3 as _sql
+
+            try:
+                conn = _sql.connect(src)
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                tables = [r[0] for r in cursor.fetchall()]
+                conn.close()
+                if "documents" not in tables:
+                    show_snack(
+                        "Invalid database: 'documents' table not found.", C.ACCENT
+                    )
+                    return
+            except Exception:
+                show_snack("Selected file is not a valid database.", C.ACCENT)
+                return
+
+            # Confirm before overwriting
+            def confirm_import(ev):
+                confirm_dlg.open = False
+                page.update()
+                try:
+                    # Remove stale WAL/SHM journal files to avoid conflicts
+                    for ext in ("-wal", "-shm", "-journal"):
+                        journal = DB_PATH + ext
+                        if os.path.exists(journal):
+                            os.remove(journal)
+                    shutil.copy2(src, DB_PATH)
+                    # Reinitialize to run schema migrations on imported DB
+                    init_db()
+                    show_snack("Database restored! Reloading...", C.SUCCESS)
+                    navigate("dashboard")
+                except Exception as ex:
+                    show_snack(f"Import failed: {ex}", C.ACCENT)
+
+            def cancel_import(ev):
+                confirm_dlg.open = False
+                page.update()
+
+            confirm_dlg = ft.AlertDialog(
+                modal=True,
+                title=ft.Row(
+                    [
+                        ft.Icon(
+                            ft.Icons.WARNING_AMBER_ROUNDED, size=20, color=C.WARNING
+                        ),
+                        ft.Text(
+                            "Replace Database?",
+                            size=15,
+                            weight=ft.FontWeight.W_600,
+                            color=C.TEXT,
+                        ),
+                    ],
+                    spacing=8,
+                ),
+                bgcolor=C.SURFACE,
+                content=ft.Text(
+                    "This will replace ALL your current data with the imported database. This cannot be undone.",
+                    size=13,
+                    color=C.TEXT2,
+                ),
+                actions=[
+                    ft.TextButton("Cancel", on_click=cancel_import),
+                    ft.TextButton(
+                        "Replace",
+                        on_click=confirm_import,
+                        style=ft.ButtonStyle(color=C.ACCENT),
+                    ),
+                ],
+            )
+            page.overlay.append(confirm_dlg)
+            confirm_dlg.open = True
+            page.update()
+        except Exception as ex:
+            show_snack(f"Import failed: {ex}", C.ACCENT)
+
+    def show_backup_restore():
+        sheet = ft.BottomSheet(
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Row(
+                            [
+                                ft.Icon(
+                                    ft.Icons.BACKUP_OUTLINED, size=22, color=C.INFO
+                                ),
+                                ft.Text(
+                                    "Backup & Restore",
+                                    size=16,
+                                    weight=ft.FontWeight.W_600,
+                                    color=C.TEXT,
+                                ),
+                            ],
+                            spacing=10,
+                        ),
+                        ft.Text(
+                            "Export your database before upgrading the app. "
+                            "After reinstalling, import it back to restore your data.",
+                            size=12,
+                            color=C.TEXT2,
+                        ),
+                        ft.Container(height=8),
+                        # Export button
+                        ft.Container(
+                            content=ft.Row(
+                                [
+                                    ft.Icon(
+                                        ft.Icons.DOWNLOAD_OUTLINED,
+                                        color="#ffffff",
+                                        size=18,
+                                    ),
+                                    ft.Text(
+                                        "Export Database",
+                                        size=14,
+                                        weight=ft.FontWeight.W_500,
+                                        color="#ffffff",
+                                    ),
+                                ],
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                spacing=8,
+                            ),
+                            bgcolor=C.SUCCESS,
+                            border_radius=10,
+                            padding=ft.Padding(left=0, top=12, right=0, bottom=12),
+                            on_click=lambda e: page.run_task(handle_export, e),
+                            ink=True,
+                        ),
+                        # Import button
+                        ft.Container(
+                            content=ft.Row(
+                                [
+                                    ft.Icon(
+                                        ft.Icons.UPLOAD_OUTLINED,
+                                        color="#ffffff",
+                                        size=18,
+                                    ),
+                                    ft.Text(
+                                        "Import Database",
+                                        size=14,
+                                        weight=ft.FontWeight.W_500,
+                                        color="#ffffff",
+                                    ),
+                                ],
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                spacing=8,
+                            ),
+                            bgcolor=C.INFO,
+                            border_radius=10,
+                            padding=ft.Padding(left=0, top=12, right=0, bottom=12),
+                            on_click=lambda e: page.run_task(handle_import, e),
+                            ink=True,
+                        ),
+                        ft.Container(height=4),
+                        ft.Text(
+                            "💡 Tip: Store the backup in Google Drive or another cloud service for safekeeping.",
+                            size=11,
+                            color=C.TEXT2,
+                            italic=True,
+                        ),
+                    ],
+                    spacing=10,
+                    tight=True,
+                ),
+                padding=ft.Padding(left=20, top=16, right=20, bottom=24),
+                bgcolor=C.SURFACE,
+                border_radius=ft.BorderRadius(
+                    top_left=16, top_right=16, bottom_left=0, bottom_right=0
+                ),
+            ),
+            bgcolor=C.SURFACE,
+            show_drag_handle=True,
+        )
+        page.show_dialog(sheet)
 
     # =======================
     # CHECK & SHOW IN-APP REMINDERS
@@ -130,34 +458,130 @@ def main(page: ft.Page):
             return f"{days_left}d left", C.SUCCESS, "#153d2a"
 
     # =======================
-    # SHOW NOTES DIALOG
+    # SHOW NOTES BOTTOM SHEET
     # =======================
     def show_notes_dialog(doc):
         name = doc["name"]
         notes = doc["notes"] or "No notes available."
+        links = doc["links"] if "links" in doc.keys() else ""
+        category = doc["category"] or "Other"
+        has_expiry = bool(doc["expiry_date"])
+        expiry_date = doc["expiry_date"] if has_expiry else "No Expiry"
+        start_date = doc["start_date"] or "—"
 
-        def close_dlg(e):
-            dlg.open = False
-            page.update()
+        if has_expiry:
+            days_left = days_left_for(doc["expiry_date"])
+            status_text, status_color, _ = status_info(days_left)
+        else:
+            status_text, status_color = "∞", C.TEXT2
 
-        dlg = ft.AlertDialog(
-            modal=False,
-            title=ft.Row(
+        content_items = [
+            # Header with status
+            ft.Row(
                 [
-                    ft.Icon(ft.Icons.NOTES_OUTLINED, size=18, color=C.INFO),
-                    ft.Text(name, size=15, weight=ft.FontWeight.W_600, color=C.TEXT),
+                    ft.Container(
+                        content=ft.Icon(
+                            ft.Icons.DESCRIPTION_OUTLINED, color=C.INFO, size=20
+                        ),
+                        bgcolor=C.INPUT_BG,
+                        border_radius=8,
+                        padding=8,
+                    ),
+                    ft.Column(
+                        [
+                            ft.Text(
+                                name, size=16, weight=ft.FontWeight.W_600, color=C.TEXT
+                            ),
+                            ft.Text(category, size=12, color=C.TEXT2),
+                        ],
+                        spacing=2,
+                        expand=True,
+                    ),
+                    ft.Container(
+                        content=ft.Text(
+                            status_text,
+                            size=11,
+                            weight=ft.FontWeight.W_500,
+                            color=status_color,
+                        ),
+                        bgcolor=C.CARD,
+                        border_radius=10,
+                        padding=ft.Padding(left=8, top=4, right=8, bottom=4),
+                    ),
                 ],
-                spacing=8,
+                spacing=10,
+            ),
+            ft.Divider(height=1, color=C.BORDER),
+            # Dates
+            ft.Row(
+                [
+                    ft.Column(
+                        [
+                            ft.Text("Start", size=10, color=C.TEXT2),
+                            ft.Text(start_date, size=12, color=C.TEXT),
+                        ],
+                        spacing=2,
+                    ),
+                    ft.Column(
+                        [
+                            ft.Text("Expires", size=10, color=C.TEXT2),
+                            ft.Text(expiry_date, size=12, color=C.TEXT),
+                        ],
+                        spacing=2,
+                    ),
+                ],
+                spacing=30,
+            ),
+            ft.Divider(height=1, color=C.BORDER),
+            # Notes
+            ft.Text("Notes", size=12, weight=ft.FontWeight.W_600, color=C.INFO),
+            ft.Text(notes, size=13, color=C.TEXT2),
+        ]
+
+        # Show clickable links
+        if links and links.strip():
+            content_items.append(ft.Divider(height=1, color=C.BORDER))
+            content_items.append(
+                ft.Text("Links", size=12, weight=ft.FontWeight.W_600, color=C.INFO)
+            )
+            for link in links.strip().split("\n"):
+                link = link.strip()
+                if link:
+                    content_items.append(
+                        ft.TextButton(
+                            content=ft.Row(
+                                [
+                                    ft.Icon(ft.Icons.LINK, size=14, color=C.SUCCESS),
+                                    ft.Text(
+                                        link if len(link) <= 40 else link[:37] + "...",
+                                        size=12,
+                                        color=C.SUCCESS,
+                                    ),
+                                ],
+                                spacing=6,
+                            ),
+                            on_click=lambda e, url=link: page.run_task(
+                                ft.UrlLauncher().launch_url, url
+                            ),
+                            tooltip=link,
+                        )
+                    )
+
+        sheet = ft.BottomSheet(
+            content=ft.Container(
+                content=ft.Column(
+                    content_items, spacing=10, tight=True, scroll=ft.ScrollMode.AUTO
+                ),
+                padding=ft.Padding(left=20, top=16, right=20, bottom=24),
+                bgcolor=C.SURFACE,
+                border_radius=ft.BorderRadius(
+                    top_left=16, top_right=16, bottom_left=0, bottom_right=0
+                ),
             ),
             bgcolor=C.SURFACE,
-            content=ft.Text(notes, size=13, color=C.TEXT2),
-            actions=[
-                ft.TextButton("Close", on_click=close_dlg),
-            ],
+            show_drag_handle=True,
         )
-        page.overlay.append(dlg)
-        dlg.open = True
-        page.update()
+        page.show_dialog(sheet)
 
     # =======================
     # ERROR DIALOG
@@ -531,12 +955,80 @@ def main(page: ft.Page):
                         ],
                         spacing=0,
                     ),
-                    ft.IconButton(
-                        icon=ft.Icons.ACCOUNT_CIRCLE_OUTLINED,
-                        icon_color=C.INFO,
-                        icon_size=28,
-                        on_click=lambda e: navigate("profile"),
-                        tooltip="Profile",
+                    ft.Row(
+                        [
+                            ft.IconButton(
+                                icon=ft.Icons.ACCOUNT_CIRCLE_OUTLINED,
+                                icon_color=C.INFO,
+                                icon_size=28,
+                                on_click=lambda e: navigate("profile"),
+                                tooltip="Profile",
+                            ),
+                            ft.PopupMenuButton(
+                                icon=ft.Icons.MENU,
+                                icon_color=C.TEXT,
+                                icon_size=24,
+                                items=[
+                                    ft.PopupMenuItem(
+                                        content=ft.Row(
+                                            [
+                                                ft.Icon(
+                                                    ft.Icons.DARK_MODE
+                                                    if page.theme_mode
+                                                    == ft.ThemeMode.DARK
+                                                    else ft.Icons.LIGHT_MODE,
+                                                    size=18,
+                                                    color=C.WARNING,
+                                                ),
+                                                ft.Text(
+                                                    "Light Mode"
+                                                    if page.theme_mode
+                                                    == ft.ThemeMode.DARK
+                                                    else "Dark Mode",
+                                                    size=13,
+                                                ),
+                                            ],
+                                            spacing=8,
+                                        ),
+                                        data="theme",
+                                        on_click=on_menu_select,
+                                    ),
+                                    ft.PopupMenuItem(),  # divider
+                                    ft.PopupMenuItem(
+                                        content=ft.Row(
+                                            [
+                                                ft.Icon(
+                                                    ft.Icons.BACKUP_OUTLINED,
+                                                    size=18,
+                                                    color=C.SUCCESS,
+                                                ),
+                                                ft.Text("Backup & Restore", size=13),
+                                            ],
+                                            spacing=8,
+                                        ),
+                                        data="backup",
+                                        on_click=on_menu_select,
+                                    ),
+                                    ft.PopupMenuItem(),  # divider
+                                    ft.PopupMenuItem(
+                                        content=ft.Row(
+                                            [
+                                                ft.Icon(
+                                                    ft.Icons.INFO_OUTLINE,
+                                                    size=18,
+                                                    color=C.INFO,
+                                                ),
+                                                ft.Text("About", size=13),
+                                            ],
+                                            spacing=8,
+                                        ),
+                                        data="about",
+                                        on_click=on_menu_select,
+                                    ),
+                                ],
+                            ),
+                        ],
+                        spacing=0,
                     ),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -554,8 +1046,21 @@ def main(page: ft.Page):
         )
 
     # =======================
-    # DOCUMENTS VIEW (search)
+    # DOCUMENTS VIEW (search + filter)
     # =======================
+    CATEGORIES = [
+        "All",
+        "Passport",
+        "License",
+        "Insurance",
+        "Certificate",
+        "Warranty",
+        "Medical",
+        "Subscription",
+        "Contract",
+        "Other",
+    ]
+
     def build_documents():
         search_field = ft.TextField(
             hint_text="Search...",
@@ -569,6 +1074,7 @@ def main(page: ft.Page):
         )
 
         docs_column = ft.Column(spacing=8)
+        active_filter = ["All"]  # mutable
 
         def on_edit(doc):
             navigate("edit", doc)
@@ -581,6 +1087,12 @@ def main(page: ft.Page):
         def load_docs(search=""):
             docs_column.controls.clear()
             docs = get_documents(search)
+
+            # Apply category filter
+            if active_filter[0] != "All":
+                docs = [
+                    d for d in docs if (d["category"] or "Other") == active_filter[0]
+                ]
 
             if not docs:
                 docs_column.controls.append(
@@ -602,6 +1114,31 @@ def main(page: ft.Page):
                     docs_column.controls.append(doc_card(doc, on_edit, on_delete))
 
             page.update()
+
+        def on_chip_select(e):
+            active_filter[0] = e.control.data
+            # Update chip visuals
+            for chip in chip_row.controls:
+                chip.selected = chip.data == active_filter[0]
+            load_docs(search_field.value)
+
+        # Build filter chips
+        chip_row = ft.Row(
+            controls=[
+                ft.Chip(
+                    label=ft.Text(cat, size=11),
+                    selected=(cat == "All"),
+                    on_select=on_chip_select,
+                    data=cat,
+                    bgcolor=C.SURFACE,
+                    selected_color=C.CARD,
+                    check_color=C.SUCCESS,
+                )
+                for cat in CATEGORIES
+            ],
+            spacing=6,
+            scroll=ft.ScrollMode.AUTO,
+        )
 
         search_field.on_change = lambda e: load_docs(search_field.value)
         load_docs()
@@ -633,6 +1170,7 @@ def main(page: ft.Page):
             [
                 header,
                 search_field,
+                chip_row,
                 ft.Container(height=4),
                 ft.Column([docs_column], scroll=ft.ScrollMode.AUTO, expand=True),
             ],
@@ -811,6 +1349,21 @@ def main(page: ft.Page):
             prefix_icon=ft.Icons.NOTES_OUTLINED,
         )
 
+        links_field = ft.TextField(
+            label="Links (one per line)",
+            value=doc["links"] if is_edit and "links" in doc.keys() else "",
+            multiline=True,
+            min_lines=2,
+            max_lines=4,
+            border_radius=8,
+            bgcolor=C.INPUT_BG,
+            border_color=C.BORDER,
+            color=C.TEXT,
+            label_style=ft.TextStyle(color=C.TEXT2),
+            prefix_icon=ft.Icons.LINK,
+            hint_text="https://drive.google.com/...",
+        )
+
         # Date pickers
         start_date_picker = ft.DatePicker(
             first_date=datetime(2000, 1, 1),
@@ -944,6 +1497,7 @@ def main(page: ft.Page):
             alert_val = (
                 alert_time_field.value.strip() if alert_time_field.value else "08:00"
             )
+            links_val = links_field.value.strip() if links_field.value else ""
 
             if is_edit:
                 update_document(
@@ -955,6 +1509,7 @@ def main(page: ft.Page):
                     reminder_days=reminder_val,
                     notes=notes_field.value.strip(),
                     alert_time=alert_val,
+                    links=links_val,
                 )
                 show_snack("Document updated!")
             else:
@@ -966,6 +1521,7 @@ def main(page: ft.Page):
                     reminder_days=reminder_val,
                     notes=notes_field.value.strip(),
                     alert_time=alert_val,
+                    links=links_val,
                 )
                 show_snack("Document added!")
 
@@ -1031,6 +1587,8 @@ def main(page: ft.Page):
                 alert_time_row,
                 ft.Container(height=4),
                 notes_field,
+                ft.Container(height=4),
+                links_field,
                 ft.Container(height=16),
                 # Save button
                 ft.Container(
@@ -1090,7 +1648,7 @@ def main(page: ft.Page):
         if not edit_mode:
             # Display mode
             def _copy_to_clipboard(val):
-                page.set_clipboard(val)
+                page.run_task(ft.Clipboard().set, val)
                 show_snack("Copied!", C.SUCCESS)
 
             def field_row(icon, label, value):
@@ -1396,30 +1954,78 @@ def main(page: ft.Page):
     # NAVIGATION
     # =======================
     content_area = ft.Container(expand=True, padding=16)
+    current_tab = [0]  # mutable to track current tab index
+
+    switcher = ft.AnimatedSwitcher(
+        content=content_area,
+        duration=300,
+        reverse_duration=200,
+        transition=ft.AnimatedSwitcherTransition.FADE,
+        switch_in_curve=ft.AnimationCurve.EASE_IN_OUT,
+        switch_out_curve=ft.AnimationCurve.EASE_IN_OUT,
+        expand=True,
+    )
 
     def navigate(view_name, data=None):
         if view_name == "dashboard":
             content_area.content = build_dashboard()
             nav_bar.selected_index = 0
+            current_tab[0] = 0
         elif view_name == "documents":
             content_area.content = build_documents()
             nav_bar.selected_index = 1
+            current_tab[0] = 1
         elif view_name == "add":
             content_area.content = build_form(doc=None)
             nav_bar.selected_index = 2
+            current_tab[0] = 2
         elif view_name == "edit":
             content_area.content = build_form(doc=data)
             nav_bar.selected_index = 1
+            current_tab[0] = 1
         elif view_name == "profile":
             content_area.content = build_profile(edit_mode=False)
         elif view_name == "profile_edit":
             content_area.content = build_profile(edit_mode=True)
+        # Update badge count
+        count = _get_alert_count()
+        home_badge.label = str(count) if count > 0 else ""
+        home_badge.small_size = 0 if count == 0 else 10
         page.update()
+
+    def on_swipe(e: ft.DragEndEvent):
+        views = ["dashboard", "documents", "add"]
+        if e.primary_velocity and e.primary_velocity < -300:
+            # Swipe left → next tab
+            if current_tab[0] < 2:
+                navigate(views[current_tab[0] + 1])
+        elif e.primary_velocity and e.primary_velocity > 300:
+            # Swipe right → previous tab
+            if current_tab[0] > 0:
+                navigate(views[current_tab[0] - 1])
+
+    swipeable_area = ft.GestureDetector(
+        content=switcher,
+        on_horizontal_drag_end=on_swipe,
+        expand=True,
+    )
 
     def on_nav_change(e):
         idx = e.control.selected_index
         views = ["dashboard", "documents", "add"]
         navigate(views[idx])
+
+    def _get_alert_count():
+        stats = get_document_stats()
+        return stats["expired"] + stats["expiring_soon"]
+
+    _alert_count = _get_alert_count()
+    home_badge = ft.Badge(
+        label=str(_alert_count) if _alert_count > 0 else "",
+        small_size=0 if _alert_count == 0 else 10,
+        bgcolor=C.ACCENT,
+        text_color="#ffffff",
+    )
 
     nav_bar = ft.NavigationBar(
         selected_index=0,
@@ -1432,6 +2038,7 @@ def main(page: ft.Page):
                 icon=ft.Icons.DASHBOARD_OUTLINED,
                 selected_icon=ft.Icons.DASHBOARD,
                 label="Home",
+                badge=home_badge,
             ),
             ft.NavigationBarDestination(
                 icon=ft.Icons.FOLDER_OUTLINED,
@@ -1453,7 +2060,7 @@ def main(page: ft.Page):
         ft.SafeArea(
             content=ft.Column(
                 [
-                    content_area,
+                    swipeable_area,
                     nav_bar,
                 ],
                 expand=True,

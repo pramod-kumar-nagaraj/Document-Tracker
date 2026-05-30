@@ -38,6 +38,12 @@ def init_db():
     except sqlite3.OperationalError:
         pass  # Column already exists
 
+    # Add links column if upgrading from old schema
+    try:
+        cursor.execute("ALTER TABLE documents ADD COLUMN links TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
     # Profile table
     cursor.execute(
         """
@@ -62,17 +68,33 @@ def init_db():
 
 
 def add_document(
-    name, category, start_date, expiry_date, reminder_days, notes, alert_time="08:00"
+    name,
+    category,
+    start_date,
+    expiry_date,
+    reminder_days,
+    notes,
+    alert_time="08:00",
+    links="",
 ):
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute(
         """
-        INSERT INTO documents (name, category, start_date, expiry_date, reminder_days, alert_time, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO documents (name, category, start_date, expiry_date, reminder_days, alert_time, notes, links)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (name, category, start_date, expiry_date, reminder_days, alert_time, notes),
+        (
+            name,
+            category,
+            start_date,
+            expiry_date,
+            reminder_days,
+            alert_time,
+            notes,
+            links,
+        ),
     )
 
     conn.commit()
@@ -117,6 +139,7 @@ def update_document(
     reminder_days,
     notes,
     alert_time="08:00",
+    links="",
 ):
     conn = get_connection()
     cursor = conn.cursor()
@@ -124,7 +147,7 @@ def update_document(
     cursor.execute(
         """
         UPDATE documents
-        SET name=?, category=?, start_date=?, expiry_date=?, reminder_days=?, alert_time=?, notes=?
+        SET name=?, category=?, start_date=?, expiry_date=?, reminder_days=?, alert_time=?, notes=?, links=?
         WHERE id=?
         """,
         (
@@ -135,6 +158,7 @@ def update_document(
             reminder_days,
             alert_time,
             notes,
+            links,
             doc_id,
         ),
     )
