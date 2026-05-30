@@ -1,3 +1,10 @@
+# DocTracker - Document Expiry Tracker
+# Copyright (C) 2026 Pramod Kumar Nagaraj
+# Licensed under GNU GPL v3.0 — see LICENSE file for details.
+#
+# Add document view component. Renders the form for creating
+# new document entries with validation and date pickers.
+
 import flet as ft
 
 from database import add_document

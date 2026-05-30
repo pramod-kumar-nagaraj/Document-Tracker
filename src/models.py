@@ -1,3 +1,11 @@
+# DocTracker - Document Expiry Tracker
+# Copyright (C) 2026 Pramod Kumar Nagaraj
+# Licensed under GNU GPL v3.0 — see LICENSE file for details.
+#
+# Data models. Defines the Document class used for type-safe
+# representation of document records.
+
+
 class Document:
     def __init__(
         self,

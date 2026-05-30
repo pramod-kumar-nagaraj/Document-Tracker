@@ -1,3 +1,10 @@
+# DocTracker - Document Expiry Tracker
+# Copyright (C) 2026 Pramod Kumar Nagaraj
+# Licensed under GNU GPL v3.0 — see LICENSE file for details.
+#
+# Background scheduler. Runs periodic checks for expiring documents
+# and triggers notifications within the configured reminder window.
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 

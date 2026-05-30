@@ -1,3 +1,10 @@
+# DocTracker - Document Expiry Tracker
+# Copyright (C) 2026 Pramod Kumar Nagaraj
+# Licensed under GNU GPL v3.0 — see LICENSE file for details.
+#
+# Main application entry point. Builds the Flet UI, handles navigation,
+# and orchestrates all views (dashboard, documents, form, profile).
+
 import flet as ft
 import shutil
 import os
@@ -131,7 +138,7 @@ def main(page: ft.Page):
                     ),
                     ft.Container(height=8),
                     ft.Text(
-                        "© 2026 Pramod Kumar Nagaraj. All rights reserved.",
+                        "© 2026 Pramod Kumar Nagaraj.",
                         size=11,
                         color=C.TEXT2,
                     ),

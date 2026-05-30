@@ -1,3 +1,10 @@
+# DocTracker - Document Expiry Tracker
+# Copyright (C) 2026 Pramod Kumar Nagaraj
+# Licensed under GNU GPL v3.0 — see LICENSE file for details.
+#
+# Notification helpers. Sends desktop notifications on supported platforms;
+# Android relies on in-app alerts instead.
+
 import sys
 
 

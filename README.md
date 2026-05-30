@@ -1,6 +1,6 @@
 # DocTracker
 
-A mobile-first document expiry tracker built with Flet and SQLite. Runs entirely offline — no cloud, no accounts, your data stays on your device.
+A document expiry tracker application built with Flet and SQLite. Runs entirely offline — no cloud, no accounts, your data stays on your device.
 
 ## What It Does
 
@@ -12,6 +12,7 @@ A mobile-first document expiry tracker built with Flet and SQLite. Runs entirely
 - Set custom reminder windows (1–90 days before expiry) and daily alert times
 - Search and filter across all documents
 - Dark themed UI optimized for mobile screens
+- Backup and restore database
 
 ## Tech Stack
 
@@ -44,3 +45,8 @@ Output APK will be in the `build/` directory.
 
 - [Flet Documentation](https://flet.dev/docs)
 - [Flet — Build APK for Android](https://flet.dev/docs/publish/android)
+
+---
+
+**Copyright © 2026 Pramod Kumar Nagaraj**  
+Licensed under the [GNU GPL v3.0](LICENSE)

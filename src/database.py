@@ -1,3 +1,10 @@
+# DocTracker - Document Expiry Tracker
+# Copyright (C) 2026 Pramod Kumar Nagaraj
+# Licensed under GNU GPL v3.0 — see LICENSE file for details.
+#
+# SQLite database layer. Handles CRUD operations for documents and profile,
+# schema creation, and migrations.
+
 import sqlite3
 import os
 

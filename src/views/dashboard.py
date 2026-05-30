@@ -1,3 +1,10 @@
+# DocTracker - Document Expiry Tracker
+# Copyright (C) 2026 Pramod Kumar Nagaraj
+# Licensed under GNU GPL v3.0 — see LICENSE file for details.
+#
+# Dashboard view component. Displays documents grouped by status
+# (expired, expiring soon, active, no expiry) with stat counters.
+
 import flet as ft
 from datetime import datetime
 
